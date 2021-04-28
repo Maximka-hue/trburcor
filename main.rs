@@ -3,7 +3,7 @@ extern crate libc;
 extern crate cc;
 use libc::{c_double, c_int};
 
-//#[link(name = "smooth_correct_utf")]
+//#[link(name = "smooth")]
 extern "C" {
     fn smooth_arr_zm_fur(Fs:*mut c_double, Nmax: c_int, smooth_intensity: c_double, Fi: *mut c_double, Ftd: *mut c_double) ->  c_int;
 }
@@ -14,8 +14,8 @@ fn main() {
         println!("{} = {:?}", key, value);
     }
     cc::Build::new()
-        .file("src/smooth_correct_utf.c")
-        .compile("smooth_correct_utf");
+        .file("src/smooth.c")
+        .compile("smooth");
     println!("Hello, world!, {}",  env::var("OUT_DIR").unwrap());
     let all_steps: i32 = 1000;
     let width = all_steps as usize;
