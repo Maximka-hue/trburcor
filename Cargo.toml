@@ -1,5 +1,5 @@
 [package]
-name = "RUSTDraft"
+name = "c_export"
 version = "0.1.0"
 authors = ["Maximka-hue <53125181+Maximka-hue@users.noreply.github.com>"]
 edition = "2018"
@@ -10,4 +10,4 @@ edition = "2018"
 libc = "0.2.94"
 
 [build-dependencies]
-cc = "1.0"
+cc = "1.0" 
