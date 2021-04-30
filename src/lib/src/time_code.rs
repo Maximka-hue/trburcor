@@ -52,9 +52,9 @@ T: num_traits::Zero + num_traits::ToPrimitive + num_traits::NumCast {
 impl<'ph, K, V, P> GlobalExpiredTime<'ph, K, V, P> where
 //K must be the number! of block in program counted times.(as example)
 //Default- zero, ToPrimitive + std::cmp::Ord- requirement NumCast::from, Send- to use in threads
-K: num_traits::Zero + std::default::Default + num_traits::NumCast + num_traits::ToPrimitive +
+K: num_traits::Zero + std::default::Default + num_traits::NumCast + num_traits::ToPrimitive + std::ops::AddAssign +
 Copy + Sync + std::cmp::Ord + std::hash::Hash + std::fmt::Debug,//, TimeSpec:
-V: Default + Sync +std::fmt::Debug + Clone + Display + num_traits::NumCast + num_traits::ToPrimitive + std::cmp::Ord,
+V: Default + Sync +std::fmt::Debug + Copy + Display + num_traits::NumCast + num_traits::ToPrimitive + std::cmp::Ord,
 P: std::marker::Send {
     pub fn new(t_kind: Option<String>) -> Self {
         if let Some(kind_of_time) = t_kind {
@@ -159,12 +159,12 @@ P: std::marker::Send {
         //let mut counted_times= self.IntInfo.get(key_num_last_block.0).unwrap_or(&sec_v);
         let mut next_key_block: u32 = NumCast::from(*key_num_last_block.0).unwrap();
         next_key_block= next_key_block + 1u32;
-        let next_key_: K= NumCast::from(next_key_block).unwrap();
+        let mut next_key_: K= NumCast::from(next_key_block).unwrap();
         let last_dur: V = NumCast::from(
             (lt.signed_duration_since(*vec_locs.get(vec_locs.len() - 2).unwrap())) //Local
             .num_microseconds().unwrap()).unwrap();
         //Then increment counted times on that block
-        let counter = self.IntInfo.entry(next_key_).or_insert((last_dur, Some(0_u32) ) );
+        let mut counter = self.IntInfo.entry(next_key_).or_insert((last_dur, Some(0_u32) ) );
         let mut cc: Option<u32>= Some(counter.1.unwrap_or(0u32));
         if let Some(mut c) = cc {c+= 1;cc= Some(c);}
         counter.1= cc;
@@ -172,9 +172,13 @@ P: std::marker::Send {
         file_path = fname;
         let mut file = OpenOptions::new().append(true).open(file_path).expect(
             "cannot open file");
-         file.write_all(format!("New Block № {:?}: period {} times count {:?}\n", next_key_, counter.0, cc).as_bytes()).expect("write failed");
-         file.write_all(description.as_bytes()).expect("write failed");
-         println!("file append success");}
+        file.write_all(format!("New Block № {:?}: period {} times count {:?}\n", next_key_, counter.0, cc).as_bytes()).expect("write failed");
+        file.write_all(description.as_bytes()).expect("write failed");
+        let mut cur_key:u32 = NumCast::from(next_key_).unwrap();
+        let mut cur_counter:u32 = NumCast::from(counter.0).unwrap();
+        cur_key+=1_u32;
+        cur_counter+=1_u32;
+         println!("time had been detected_)");}
 //Style::new().foreground(Blue).italic().paint(
         Ok(())
     }
