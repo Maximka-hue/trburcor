@@ -1936,21 +1936,4 @@ fn wf(_path: Option<&Path>) -> Result<(), Error> {
     }
     }    Ok(())
 }
-pub fn find(haystack: &str, needle: char) -> Option<usize> {
-    for (offset, c) in haystack.char_indices() {
-        if c == needle {
-            return Some(offset);
-        }
-    }
-    None
-}
-pub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
-let mut results = Vec::new();
-for line in contents.lines() {
-    if line.contains(query) {
-        results.push(line);
-        }
-    } 
-    results
-}
 // =================================================================
