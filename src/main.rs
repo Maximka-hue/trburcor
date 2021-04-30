@@ -1413,7 +1413,7 @@ if paraview_format.unwrap_or(false){
     }
     println!("{:?}", tvector);
         for y_index in 0.. end_of_traverse{
-            let mut any_notnull = true;//tvector[y_index.. y_index + raw_size as usize].iter().any(|&v| v !=0_f32);
+            let mut any_notnull = tvector[y_index.. y_index + raw_size as usize].iter().any(|&v| v !=0_f32);
             println!("Next cycle {}\nPossible check on non null vector: {}", y_index, any_notnull);
             //Check that vector doesn't contain all zeros
             if any_notnull
