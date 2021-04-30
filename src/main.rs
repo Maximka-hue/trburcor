@@ -12,6 +12,7 @@
 //Also on Ubuntu:
 //I had write on my user defined system: cd /home/computadormaxim/RUSTprojects/trburcor
 //cargo run main.rs txt_to_parse\TransferBurgerMccornack_iconditions0.txt  -d
+//As this training task for first steps learning language, 
 //DESIGNATIONS will be following:📔
 //E!xt- Doesn't import crate
 //C!ircumvent- desire to do smth else to avoid ... creating temp value, etc.(et cetera)
@@ -19,6 +20,7 @@
 //D!esire - I would like to use it, but didn't find appropriate method/way to use for it) 
 //*********************************************************************
 //#![feature(slice_fill_with)]
+#![feature(with_options)] //to enable write in file
 #![feature(allocator_api)]    // in fn preprocess_text
 #![feature(iter_intersperse)] //in csv writing
 #![feature(toowned_clone_into)]
@@ -89,7 +91,33 @@ use std::fs::OpenOptions;
     fn smooth_arr_zm_fur(Fs: *mut c_double, Nmax: c_int, smooth_intensity: c_double, Fi: *mut c_double, Ftd: *mut c_double) ->  c_int;
 }*/
 extern "C" {
-    fn callback();}
+    fn callback();
+}
+
+#[cfg(target_os = "linux")]
+fn call_callback() -> Box<Fn()->()>{
+    unsafe{
+        Box::new(callback())
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn call_smooth(inner_vector: &mut Vec<f32>, all_steps: usize, smooth_intensity: f32, first_correction: &mut Vec<f32>, second_correction: &mut Vec<f32>) 
+    //-> Box<Fn(Vec<f32>, i32, f32, Vec<f32>, Vec<f32>) -> i32>
+    {
+        unsafe{
+            smooth_arr_zm_fur(inner_vector.as_mut_ptr() as *mut f64, all_steps as i32, smooth_intensity,
+                first_correction.as_mut_ptr() as *mut f64, second_correction.as_mut_ptr() as *mut f64)
+        }
+    //Box::new(smooth_arr_zm_fur(inner_vector.as_mut_ptr() as *mut f64, all_steps as i32, smooth_intensity,
+    //    first_correction.as_mut_ptr() as *mut f64, second_correction.as_mut_ptr() as *mut f64))
+}
+#[cfg(not(target_os = "linux"))]
+fn call_smooth(inner_vector: &mut Vec<f32>, all_steps: usize, smooth_intensity: f32, first_correction: &mut Vec<f32>, second_correction: &mut Vec<f32>) 
+    //-> Box<Fn(Vec<f32>, i32, f32, Vec<f32>, Vec<f32>) -> i32>
+    {
+}
+
 #[derive(Debug,Clone)]
 pub struct Argumento{
     pub query : String,
@@ -177,7 +205,6 @@ use std::error::Error as SError;//****
 type StdResult<T> = std::result::Result<T, Box<dyn SError>>;
 
 fn main() -> StdResult<()> {//Result<(), dyn std::error::Error + 'static>
-//unsafe{callback();}
 let now = Instant::now();
 //Struct with specifics: unpack some arguments
 let opt = DebOpt::from_args();
@@ -186,6 +213,7 @@ let d: bool = opt.debug;//opt.debug;
 let c: bool = opt.correction;
 let type_of_correction_program: bool = true;
 let time_switch: bool = opt.time_switch;
+let time_decrease: f32 = 5.0;
 let amf: usize = opt.amount_of_files as usize;
 println!("debug- {} correction- {} time_switch- {}", d, c, time_switch);
 let num_threads = num_cpus::get();
@@ -797,8 +825,8 @@ let mut second_correction = vec![0_f32; width];
         let zero_one = chrono::Duration::zero();
         let size_time = (print_npy + 1) as usize;// *time_ev.0.ceil()
         //save here for numerical and exact output
-        let vec_output = vec![vec![0_f32; size_time * time_ev.0 as usize / (time_ev.1 as usize) + 2_usize], 
-            vec![0_f32; size_time * time_ev.0 as usize / time_ev.1 as usize + 2_usize]];
+        let vec_output = vec![vec![0_f32; time_decrease.ceil() as usize * size_time * time_ev.0 as usize / (time_ev.1 as usize) + 2_usize], 
+            vec![0_f32; time_decrease.ceil() as usize * size_time * time_ev.0 as usize / time_ev.1 as usize + 2_usize]];
         let mut vector_time: Vec<f32>= if !time_switch {
             vec_output[0].clone()
         }
@@ -839,7 +867,7 @@ let mut exact_solution = OpenOptions::new()
     .write(true).create(true).open(&path_to_exact).expect("cannot open file");*/
 let smooth_correction: bool = c;
 let smooth_intensity = 0.5;
-show_shape(all_steps, print_npy, &vprevious, &first_ex, &tr, nf, "This is the time after initializing shape");
+show_shape(all_steps, print_npy, &vprevious, &first_ex, &tr, nf, "This is the time after initializing shape", Some("the_beggining_shape"));
 #[allow(unused_assignments)]
 if time_switch {//Cycle time #1 : Better glance first on else branch.
     let mut current_time = 0_f32;//will be increased by every cycle_time loop on constant
@@ -894,9 +922,9 @@ if time_switch {//Cycle time #1 : Better glance first on else branch.
                     Style::new().foreground(Blue).italic().paint("will be smoothed out with rust function 'smoothZF_rs'."));
                     smoothZF_rs(&mut inner_vector, all_steps, smooth_intensity, &mut first_correction, &mut second_correction);
             }
-            else if smooth_correction{ /*unsafe{  smooth_arr_zm_fur(inner_vector.as_mut_ptr() as *mut f64, all_steps as i32, smooth_intensity,
-                first_correction.as_mut_ptr() as *mut f64, second_correction.as_mut_ptr() as *mut f64);}*/
-
+            else if smooth_correction{
+                call_smooth(&mut inner_vector, all_steps, smooth_intensity,
+                    &mut first_correction, &mut second_correction);
             }
             if k % print_npy as usize == 0 
                 {println!("Array on previous layer {}, fu_next(u) {}\n", vprevious[k], fu_next);
@@ -931,16 +959,17 @@ if time_switch {//Cycle time #1 : Better glance first on else branch.
                         inner_vector[k] = 0.5 * vprevious[k] + prediction[k] - (dt/dx) * (fp_next - fp_prev);
                     }
                     else {
-                        inner_vector[k] = vprevious[k] - (dt/dx)*(fu_next - fu_prev);}
+                        inner_vector[k] = vprevious[k] - (dt/dx)*(fu_next - fu_prev);
+                    }
                     if smooth_correction && type_of_correction_program{//
                             println!("Now array on next layer with smooth_coef {1}: {0:.2}\n {2}.", smooth_intensity,
                             Style::new().foreground(Red).bold().paint("smooth_intensity"),
                             Style::new().foreground(Blue).italic().paint("will be smoothed out with rust function 'smoothZF_rs'."));
                             smoothZF_rs(&mut inner_vector, all_steps, smooth_intensity, &mut first_correction, &mut second_correction);
                     }
-                    else if smooth_correction{ 
-                        /*unsafe{  smooth_arr_zm_fur(inner_vector.as_mut_ptr() as *mut f64, all_steps as i32, smooth_intensity,
-                        first_correction.as_mut_ptr() as *mut f64, second_correction.as_mut_ptr() as *mut f64);}*/
+                    else if smooth_correction{
+                        call_smooth(&mut inner_vector, all_steps, smooth_intensity,
+                            &mut first_correction, &mut second_correction);
                     }
                     /*if choose_output== false && k% 2  == 0 {
                         exact_solution.write(&inner_vector[k].to_be_bytes())?;
@@ -1150,12 +1179,12 @@ if time_switch {//Cycle time #1 : Better glance first on else branch.
                     Style::new().foreground(Blue).italic().paint("will be smoothed out with rust function 'smoothZF_rs'."));
                     smoothZF_rs(&mut inner_vector, all_steps, smooth_intensity, &mut first_correction, &mut second_correction);
             }
-            else if smooth_correction && all_steps>49_usize && all_steps <301_usize{//
+            else if smooth_correction && all_steps>49_usize && all_steps <301_usize {//
                     println!("Now array on next layer with smooth_coef {1}: {0:.2}\n {2}.", smooth_intensity,
-                    Style::new().foreground(Red).bold().paint("smooth_intensity"),
-                    Style::new().foreground(Blue).italic().paint("will be smoothed out with c function 'Smooth_Array_Zhmakin_Fursenko'."));
-                        /*unsafe{  smooth_arr_zm_fur(inner_vector.as_mut_ptr() as *mut f64, all_steps as i32, smooth_intensity,
-                        first_correction.as_mut_ptr() as *mut f64, second_correction.as_mut_ptr() as *mut f64);}*/     
+                        Style::new().foreground(Red).bold().paint("smooth_intensity"),
+                        Style::new().foreground(Blue).italic().paint("will be smoothed out with c function 'Smooth_Array_Zhmakin_Fursenko'."));
+                    call_smooth(&mut inner_vector, all_steps, smooth_intensity,
+                        &mut first_correction, &mut second_correction);
                 }
             else if smooth_correction{
                     println!("Steps must be set to default maximum value(200)");
@@ -1203,10 +1232,10 @@ if time_switch {//Cycle time #1 : Better glance first on else branch.
                         }
                     else if smooth_correction && all_steps>49_usize && all_steps <301_usize{//
                                 println!("Now array on next layer with smooth_coef {1}: {0:.2}\n {2}.", smooth_intensity,
-                                Style::new().foreground(Red).bold().paint("smooth_intensity"),
-                                Style::new().foreground(Blue).italic().paint("will be smoothed out with c function 'Smooth_Array_Zhmakin_Fursenko'."));
-                                    /*unsafe{  smooth_arr_zm_fur(inner_vector.as_mut_ptr() as *mut f64, all_steps as i32, smooth_intensity,
-                                    first_correction.as_mut_ptr() as *mut f64, second_correction.as_mut_ptr() as *mut f64);}*/     
+                                    Style::new().foreground(Red).bold().paint("smooth_intensity"),
+                                    Style::new().foreground(Blue).italic().paint("will be smoothed out with c function 'Smooth_Array_Zhmakin_Fursenko'."));
+                                call_smooth(&mut inner_vector, all_steps, smooth_intensity,
+                                    &mut first_correction, &mut second_correction);
                             }
                         else if smooth_correction{
                                 println!("Steps must be set to default maximum value(200)");
@@ -1244,7 +1273,7 @@ if time_switch {//Cycle time #1 : Better glance first on else branch.
     if d{println!("Steps on write h = {}\n", h);}
     period+=1_usize;
 //Now let's save datas to create animations further.          
-    if current_time_on_dt - vertical_point > -0.001  {
+    if current_time_on_dt -  (vertical_point/time_decrease).ceil() > -0.001  {
         let mut on_line;
         let mut next_vec_index;
         output_periods.push(period.clone());
@@ -1264,7 +1293,7 @@ if time_switch {//Cycle time #1 : Better glance first on else branch.
             vector_time_exact[x_index + print_npy] = first_ex[all_steps-1];
             thread::sleep(time::Duration::from_millis(SLEEP_NORMAL));
         }
-            if current_time_on_dt - vertical_point > 0.0  {
+            if current_time_on_dt - (vertical_point/time_decrease).ceil() > 0.0  {
                 x_index= x_index + print_npy as usize;
                 vertical_point+= time_ev.1;
             }
@@ -1295,16 +1324,17 @@ if time_switch {//Cycle time #1 : Better glance first on else branch.
             //Duration::nanoseconds(
         }
     }
+    show_shape(all_steps, print_npy, &vector_time, &vector_time_exact, &tr, nf, "This is the time after all processed time.", Some("the_ultimate_shape"));
 //vector_time.iter()
 //        .filter(|&p| !p.iter().all(|&v| v == 0_f32));
 let t_maxx = if equation ==0 {None} else {Some(t_max)};
-save_files(&tr, vector_time, Some(vector_time_exact), (all_steps, Some(domain.0), Some(domain.1), t_maxx), Some(print_npy), nf, Some(output_periods),
-    Some(false), Some(true))?; 
-}//show_shape(all_steps, print_npy, &vector_time, &vector_time_exact, &tr, nf, "This is the time after all processed time.");
+    save_files(&tr, vector_time, Some(vector_time_exact), (all_steps, Some(domain.0), Some(domain.1), t_maxx), Some(print_npy), nf, Some(output_periods),
+        Some(false), Some(true))?; 
+}
 Ok(())
 }
 
-fn show_shape(all_steps: usize, print_npy: usize, numvec: &Vec<f32>, exactvec: &Vec<f32>, dir_from: &PathBuf, nf: usize, desc: & str){
+fn show_shape(all_steps: usize, print_npy: usize, numvec: &Vec<f32>, exactvec: &Vec<f32>, dir_from: &PathBuf, nf: usize, desc: & str, time_form: Option<&str>){
 let step_by_step = (all_steps  as f32/print_npy as f32).floor() as usize;
 let mut next_vec_index =0_usize;
     println!("X , U , U_exact "); 
@@ -1315,7 +1345,7 @@ let mut next_vec_index =0_usize;
             println!("{}  , {:^.5}, {:^.5}", next_vec_index as f32, numvec[next_vec_index], exactvec[next_vec_index]);}
             println!("{}  , {:^.5}, {:^.5}", all_steps as f32, numvec[end], exactvec[end]);
 
-        let pic_path = format!(r"{}\pic_shapes_nf{}.txt",  dir_from.display(), nf);
+        let pic_path = format!(r"{}\pic_shapes_nf{}{}.txt",  dir_from.display(), nf, time_form.unwrap_or(""));
         let mut pic_file = std::fs::File::create(&pic_path[..]).unwrap_or_else(|error| 
             panic!("Problem creating the file: {:?}", error));
         for k in 0..print_npy{
@@ -1326,8 +1356,8 @@ let mut next_vec_index =0_usize;
             pic_file.write_all(format!("^^^{}\n", desc).as_bytes()).unwrap();
     }
 
-fn create_safe_file(path: &str) -> Result<(), std::io::Error>{
-std::fs::File::open(&path).unwrap_or_else(|error| {
+fn create_safe_file(path: &str) -> Result<std::fs::File, std::io::Error>{
+let file = std::fs::File::with_options().write(true).open(&path).unwrap_or_else(|error| {
     if error.kind() == ErrorKind::NotFound {
         File::create(&path).unwrap_or_else(|error| {
             panic!("Problem creating the file: {:?}", error);
@@ -1337,13 +1367,12 @@ std::fs::File::open(&path).unwrap_or_else(|error| {
         panic!("Problem opening the file: {:?}", error);
     }
     });
-Ok(())
+Ok(file)
 }
 fn save_files(dir: &PathBuf, tvector: Vec<f32>, wvector: Option<Vec<f32>>, (steps, left, right, t_max): (usize, Option<f32>, Option<f32>, Option<f32>), elements_per_raw: Option<usize>,
     nf: usize, output_periods: Option<Vec<usize>>, necessity_of_csv: Option<bool>, paraview_format: Option<bool>) -> std::io::Result<()>
 {
     use csv::Writer;
-//use std::mem;
     use std::cmp;
     let repeated: String= std::iter::repeat(".").take(20).collect();
     const DEFAULT_ELEMENTS_PER_RAW: usize = 11;
@@ -1381,42 +1410,46 @@ if let Some(ex) = wvector{
 //This will create csv like txt files to turn them in paraview window
 if paraview_format.unwrap_or(false){
     switch_path = format!(r".\{0}\paraview_datas", dir.display());
-    println!("raw_size: {}, switch_path: {}", raw_size, switch_path);
-    // fs::remove_dir_all(&switch_path[..])?;
+    println!("quantity parts size: {}\n paraview path: {}", raw_size, switch_path);
     fs::create_dir_all(&switch_path[..])?;
-    //fs::create_dir(format!(r".\{}\paraview_datas", dir.display()))?;
     let end_of_traverse = (tvector.len() as f32/raw_size  as f32).floor() as usize;
-    println!("end_of_traverse: {}", end_of_traverse);
+    println!("End of traverse vector with computed values(outer loop): {}", end_of_traverse);
     let mut next_period: usize;
     let mut index_in_periods: usize = 0;
     let mut periods: Vec<usize> = vec![0_usize;  tvector.len()];
     if let Some(periods_) = output_periods{
         periods = periods_;
     }
+    println!("{:?}", tvector);
         for y_index in 0.. end_of_traverse{
+            let mut any_notnull = true;//tvector[y_index.. y_index + raw_size as usize].iter().any(|&v| v !=0_f32);
+            println!("Next cycle {}\nPossible check on non null vector: {}", y_index, any_notnull);
             //Check that vector doesn't contain all zeros
-            if tvector[y_index..y_index+(raw_size-1) as usize].iter().any(|&v| v !=0_f32)
+            if any_notnull
             //Iterate over horizontal lines and save in txt
             {
             switch_path = format!(r".\{0}\paraview_datas\x_u_w_{1}_{2}.txt", dir.display(), nf, y_index);
+            println!("Now create in paraview csv like txt files with computed exact and numeric values");
             //create_safe_file(&switch_path[..])?;//paraview_txt_file
-            let mut my_file = std::fs::File::create(&switch_path[..])?;//superfluously
+            let mut my_file = std::fs::File::create(&switch_path[..]).unwrap();//superfluously
+            println!("{:?}\n periods.len(): {}", my_file, periods.len());
             if periods.len() !=0{   
                 next_period = *periods.get(index_in_periods).unwrap_or(&0_usize);
                 //next_period = next_period.unwrap_or(output_periods.get(output_periods.len()- 1));
-                {my_file.write_all("x,exv,numv,passed_period\n".as_bytes()).unwrap();}
+                println!("{:?}", my_file.write_all("x,exv,numv,passed_period\n".as_bytes()).unwrap());
             }
             else{
                 next_period = 0_usize;  
-                {my_file.write_all("x,exv,numv\n".as_bytes()).unwrap();}
+                    my_file.write_all("x,exv,numv\n".as_bytes()).unwrap();
             }  
                 for k in 0..raw_size {
                     on_line = h*k;
                     x_next = left + on_line as f32;
                     next_index = k + y_index * raw_size;
                     string_raw = format!(r"{},{},{},{}
-", x_next, exact_vector[next_index], tvector[next_index], next_period);   
+", x_next, exact_vector[next_index], tvector[next_index], next_period);
                     my_file.write_all(&string_raw[..].as_bytes()).unwrap();
+                    println!("Write after");   
                 }
                 if y_index != end_of_traverse-1 {   
                     string_raw = format!(r"{},{},{},{}
@@ -1426,29 +1459,23 @@ if paraview_format.unwrap_or(false){
                 else{
                     string_raw = format!(r"{},{},{},{}
 ", steps , exact_vector[exact_vector.len() -1], tvector[tvector.len() -1], next_period);
-                    my_file.write_all(&string_raw[..].as_bytes()).unwrap();
+                    my_file.write_all(&string_raw[..].as_bytes())?;
                 }
                 index_in_periods+=1_usize;
             }
         }
     }
     let path_to_read = Path::new(&parameters_path[..]);
-    let mut prm= File::open(&path_to_read)?;   
-    /*prm.write_all("y".as_bytes())?;
-    prm.write_all(format!("printed elements per raw {}\n", raw_size).as_bytes()).unwrap();
+    let mut prm= File::with_options().write(true).open(&path_to_read)?;   
+    prm.write_all(format!("Printed elements per raw {}\n", raw_size).as_bytes())?;
     if let Some(t_max) = t_max {
-    prm.write_all(format!("Maximum live time in burger task: {}\n", t_max).as_bytes()).unwrap();
+    prm.write_all(format!("Maximum live time in burger task: {}\n", t_max).as_bytes())?;
     }
-    for e in WalkDir::new(".").into_iter().filter_map(|e| e.ok()) {
+    /*for e in WalkDir::new(".").into_iter().filter_map(|e| e.ok()) {
         if e.metadata().unwrap().is_file() {
             println!("{}", e.path().display());
         }
-    }*/
-
-    /*println!("{:?}", parameters_path);
-    println!("{:?}", repeated);
-    
-    println!("{:?}", repeated);*/
+    }println!("{:?}", repeated);*/
     //close then change
     let necessity_of_csv = necessity_of_csv.unwrap_or(false);//shaded variable
     if necessity_of_csv == true {
@@ -1475,7 +1502,7 @@ if paraview_format.unwrap_or(false){
                     let mut temp_slice_vec = csv_array[i].clone().iter().map(|s| s.to_string()).collect::<Vec<String>>();
                     let new_array = temp_slice_vec.into_iter().inspect(|x| println!("about to intersperse: {}", x)).intersperse(",".to_string())
                     .inspect(|x| println!("after intersperse: {}", x)).collect::<Vec<String>>();
-            wtr_inner.write_record(&temp_csv)?;
+            wtr_inner.write_record(&temp_csv).unwrap();
             wtr_inner.flush()?;
                 }
             }
@@ -1483,28 +1510,27 @@ if paraview_format.unwrap_or(false){
     }
     //let mut csv_array = vec![vec![0_u8; mem::size_of::<f32>() as usize];
     //    raw_size *  mem::size_of::<f32>() as usize]; 
-    //
     //if tvector.len().is_nan() || tvector.len() <= exact_vector.len() { exact_vector.len() } else { tvector.len() }
-    let mut py_file = File::open(&pypath)?;
-    let mut expy_file = File::open(&expypath)?;
+    println!("pypath: {}\nexpypath: {}", pypath, expypath);
+    let mut py_file = File::with_options().write(true).open(&pypath)?;
+    let mut expy_file =  File::with_options().write(true).open(&expypath)?;
     //______________________________________________//
         let mut x_index;
         for i in 0..(tvector.len() as f32/raw_size  as f32).floor() as usize{
-            if tvector[i+1_usize..i+(raw_size-1) as usize].iter().any(|&v| v !=0_f32){//[i][1_usize..] 
-                    //wtr_inner = Writer::from_path(&cnew_switch_csv_i)?;
-                {println!("inside {:?}", repeated);
-                write!(&mut py_file," ")?;//Maybe [
-                write!(&mut expy_file," ")?;}
+            if tvector[i+1_usize..i+(raw_size-1) as usize].iter().any(|&v| v !=0_f32){
+                //wtr_inner = Writer::from_path(&cnew_switch_csv_i)?;
+                //write!(&mut py_file," ").unwrap();//This will write binary data!
+                py_file.write_all(" ".as_bytes())?;
+                expy_file.write_all(" ".as_bytes())?;
                 for k in 0..raw_size{
                     x_index = k as usize + i * raw_size as usize;//.to_le_bytes()
                     print!("{:.4} , ", tvector[x_index]);
                     if k % (raw_size-1) == 0 
                         {print!("\n");}
                     if k != raw_size-1 {
-                    println!("inside before {:?}", repeated);
-                        write!(&mut py_file,"{:.4}", tvector[x_index])?;//.as_bytes()
-                        write!(&mut expy_file,"{:.4}", exact_vector[x_index])?;
-                    println!("inside after {:?}", repeated);
+                        //write!(&mut py_file,"{:.4}", tvector[x_index])?;//also as above!
+                        py_file.write_all(format!("{:.4}", tvector[x_index]).as_bytes())?;
+                        expy_file.write_all(format!("{:.4}", exact_vector[x_index]).as_bytes())?;
                     }
                     else 
                     {
@@ -1522,22 +1548,15 @@ if paraview_format.unwrap_or(false){
     println!("All had been written");
 Ok(())
 }
-        //write!(&mut file, "    ")?; is equal to \t
-        //write!(&mut file, ")   Size_per_second {}", size_per_second.unwrap_or(0_i32).to_string())?;
-                //write!(&mut file, "    ")?; is equal to \t
-                //write!(&mut file, ")   Size_per_second {}", size_per_second.unwrap_or(0_i32).to_string())?;
+
 fn create_output_dir(fnum: usize, num_files: usize) -> StdResult<( PathBuf, File )>{
-//Создаем файл с именованными полями
-//let mut temp_directory = env::temp_dir();
-//temp_directory.push("/src");
+//Create file with named fields & Создаем файл с именованными полями
 let path = env::current_dir().unwrap();
 println!("{} {}", ansi_term::Colour::Cyan.on(ansi_term::Colour::Blue).fg(ansi_term::Colour::Yellow).paint("The current directory is "), path.display());
 let new_path = path.join(format!(r"src\treated_datas_{}", fnum));
 println!("{} {}", ansi_term::Colour::Cyan.on(ansi_term::Colour::Blue).fg(ansi_term::Colour::Green).paint("new_path is "), new_path.display());
 fs::create_dir_all(&new_path).unwrap(); //env::temp_dir();
 let temp_fi = new_path.join(format!(r"parameters_nf{}.txt", fnum));
-//let mut processed_params =  std::fs::File::open(&temp_fi).unwrap();
-//println!("{:?}", processed_params);
 let processed_params =  fs::OpenOptions::new().create(true).write(true)/*.mode(0o770)*/.open(&temp_fi).unwrap_or_else(|error| {
     if error.kind() == ErrorKind::NotFound {
         File::create(&temp_fi).unwrap_or_else(|error| {
@@ -1867,11 +1886,11 @@ fn parse_three<T: FromStr>(s : &str, separator :char) -> Option<(T,T,T)>{
                 T::from_str(&s[indexx+width..])){
                 (Ok(l),Ok(r),Ok(c)) =>Some((l, r,c)),
                 _ => None
+                }
             }
+        }
     }
-}}}}
-//use std::error::Error;
-
+}}
 //From rust cookbook!
 use std::io::{Error};
 fn wf(_path: Option<&Path>) -> Result<(), Error> {
@@ -1930,7 +1949,8 @@ let mut results = Vec::new();
 for line in contents.lines() {
     if line.contains(query) {
         results.push(line);
-    }
-} results
+        }
+    } 
+    results
 }
 // =================================================================
