@@ -6,12 +6,13 @@
 //cargo run main.rs "C:\Users\2020\RUSTFirstOrderEquation\src\Other\src\TransferBurgerMccornack_iconditions.txt"
 //Some other ways for running in win (-d now is needed to work)
 //cd C:\Users\2020\RUSTprojects\trburcor      cd C:\Users\*insert_your_name*\RUSTprojects\trburcor
-//  cargo run main.rs txt_to_parse\TransferBurgerMccornack_iconditions2.txt -d 
 //  cargo run main.rs txt_to_parse\TransferBurgerMccornack_iconditions1.txt  -d
 //  txt_to_parse\TransferBurgerMccornack_iconditions11.txt txt_to_parse\TransferBurgerMccornack_iconditions111.txt -d -amf 3 
 //Also on Ubuntu:
 //I had write on my user defined system: cd /home/computadormaxim/RUSTprojects/trburcor
-//cargo run main.rs txt_to_parse\TransferBurgerMccornack_iconditions0.txt  -d
+//cargo run main.rs /home/computadormaxim/RUSTprojects/trburcor/src/txt_to_parse/TransferBurgerMccornack_iconditions0.txt -d
+//cargo run main.rs ./txt_to_parse/TransferBurgerMccornack_iconditions0.txt  -d 
+//cp ./src/treated_datas_nf0 
 //As this training task for first steps learning language, 
 //DESIGNATIONS will be following:📔
 //E!xt- Doesn't import crate
@@ -86,18 +87,18 @@ extern "C" {
     fn callback();
 }
 #[cfg(target_os = "linux")]
-fn call_callback() -> Box<Fn()->()>{
+fn call_callback() -> Box<()>{
     unsafe{
         Box::new(callback())
     }
 }
 
 #[cfg(target_os = "linux")]
-fn call_smooth(inner_vector: &mut Vec<f32>, all_steps: usize, smooth_intensity: f32, first_correction: &mut Vec<f32>, second_correction: &mut Vec<f32>) 
+fn call_smooth(inner_vector: &mut Vec<f32>, all_steps: usize, smooth_intensity: f32, first_correction: &mut Vec<f32>, second_correction: &mut Vec<f32>) -> i32 //this is std c error if !=0.
     //-> Box<Fn(Vec<f32>, i32, f32, Vec<f32>, Vec<f32>) -> i32>
     {
         unsafe{
-            smooth_arr_zm_fur(inner_vector.as_mut_ptr() as *mut f64, all_steps as i32, smooth_intensity,
+            smooth_arr_zm_fur(inner_vector.as_mut_ptr() as *mut f64, all_steps as i32, smooth_intensity as f64,
                 first_correction.as_mut_ptr() as *mut f64, second_correction.as_mut_ptr() as *mut f64)
         }
     //Box::new(smooth_arr_zm_fur(inner_vector.as_mut_ptr() as *mut f64, all_steps as i32, smooth_intensity,
@@ -107,6 +108,7 @@ fn call_smooth(inner_vector: &mut Vec<f32>, all_steps: usize, smooth_intensity: 
 fn call_smooth(inner_vector: &mut Vec<f32>, all_steps: usize, smooth_intensity: f32, first_correction: &mut Vec<f32>, second_correction: &mut Vec<f32>) 
     //-> Box<Fn(Vec<f32>, i32, f32, Vec<f32>, Vec<f32>) -> i32>
     {
+        smoothZF_rs(inner_vector, all_steps, smooth_intensity, first_correction, second_correction)
 }
 
 #[derive(Debug,Clone)]
@@ -124,7 +126,7 @@ impl Argumento {
     let mut args_vec: Vec<String> = Vec::with_capacity(args.len()+5 as usize); 
         for argument in env::args().skip(2) { //skip name of programm 
             if argument == "--help" {
-              println!("You passed --help as one of the arguments!");
+                println!("You passed --help as one of the arguments!");
             }
             else if argument.ends_with(".txt"){
                 args_vec.push(argument);
@@ -204,7 +206,7 @@ let d: bool = opt.debug;//opt.debug;
 let c: bool = opt.correction;
 let type_of_correction_program: bool = true;
 let time_switch: bool = opt.time_switch;
-let time_decrease: f32 = 5.0;
+let time_decrease: f32 = 10.0;
 let amf: usize = opt.amount_of_files as usize;
 println!("debug- {} correction- {} time_switch- {}", d, c, time_switch);
 let num_threads = num_cpus::get();
@@ -218,7 +220,12 @@ if d{thread::sleep(time::Duration::from_millis(SLEEP_LOW));}
 //Then instantiate struct that will measure time(purpose to create this- share with it in threads)
 let mut time_inst: GlobalExpiredTime<u32, u32, u32>= GlobalExpiredTime::new(Some(String::from("UTC")));
 let env_path = env::current_dir().unwrap();//File for time logging
-let new_path = env_path.join(format!(r"src\timing_log"));
+let new_path = if cfg!(target_family = "unix"){
+    env_path.join(format!(r"src/timing_log"))
+}
+else{
+    env_path.join(format!(r"src\timing_log"))
+};
 fs::create_dir_all(&new_path).unwrap(); //env::temp_dir();
 let temp_fi = new_path.join(format!(r"main_time.txt"));
 File::create(temp_fi.clone())?;
@@ -243,8 +250,8 @@ data_directories.extend(vec![data_directory.clone(); amf * DIFEQTYPES as usize].
 let config = Config::builder()
     .appender(Appender::builder().build("logfile", Box::new(logfile)))
     .build(Root::builder()
-           .appender("logfile")
-           .build(LevelFilter::Info))?;
+        .appender("logfile")
+        .build(LevelFilter::Info))?;
 log4rs::init_config(config)?;
 for (nf, it_file) in iter_over_filepaths.enumerate(){//To create for separate files separate log_files
     if it_file == PathBuf::from("") {break;}
@@ -329,16 +336,35 @@ let mut temporary = exact_solvec[2].clone();//Needed in 1 and 2 shapes
 let mut all_steps= vprevious.len()-2;//eliminate in 0/1 shapes additional on bound type knots
 //______________________________________________________________________________________//
 let path = env::current_dir().unwrap();
-let new_path_dif = path.join(format!(r"src\differential_errors{}.txt", nf));
-let new_path_all = path.join(format!(r"src\treated_datas_{0}\x_u_w_{0}_0.txt", nf));
+let new_path_dif = if cfg!(windows) {
+    path.join(format!(r"src\differential_errors{}.txt", nf))
+    }
+    else if cfg!(target_family = "unix"){
+        path.join(format!(r"src/differential_errors{}.txt", nf))
+    }
+    else{
+        path.join(format!(r"src\differential_errors{}.txt", nf))
+    };
+let new_path_all = if cfg!(target_family = "unix"){
+        path.join(format!(r"src/treated_datas_{0}/x_u_w_{0}_0.txt", nf))
+    }
+    else{
+        path.join(format!(r"src\treated_datas_{0}\x_u_w_{0}_0.txt", nf))
+    };
 //This will be as output to lenght from left boundary, numerical velocity and exact solution
+if d{println!("{:?}", new_path_all);}
+let mut tr_path = String::new();
+tr_path = if cfg!(target_family = "unix"){
+    format!(r"src/treated_datas_{}", nf)
+}
+else{
+    format!(r"src\treated_datas_{}", nf)
+};
+let tr = PathBuf::from(&tr_path[..]);//csv_files
+std::fs::create_dir_all(&tr_path)?;
 let mut x_v_w = OpenOptions::new()
         .write(true).create(true).open(&new_path_all).expect("cannot open file x_v_w");
         x_v_w.write_all("x, u, w".as_bytes()).expect("write failed");
-let mut tr_path = String::new();
-tr_path = format!(r"src\treated_datas_{}", nf);
-let tr = PathBuf::from(&tr_path[..]);//csv_files
-std::fs::create_dir_all(&tr_path)?;
     let smax: f32 = match &equation{
         0 => {let transfer_v = &veloc as &f32;
             //Init parameters to define initial shapes
@@ -1385,9 +1411,24 @@ fn save_files(dir: &PathBuf, tvector: Vec<f32>, wvector: Option<Vec<f32>>, (step
     println!("path {:?} & directory specified {:?} paraview_format: {:?}" , path, dir, paraview_format);
 //let mut y_index = 0_usize;
     let mut switch_path = String::new();
-    let pypath = format!(r".\{}\to_python_nf{}.txt", dir.display(), nf);
-    let expypath = format!(r".\{}\exact_to_python_nf{}.txt", dir.display(), nf);
-    let parameters_path = format!(r".\{0}\parameters_nf{1}.txt", dir.display(), nf);
+    let pypath = if cfg!(windows) {
+        format!(r".\{}\to_python_nf{}.txt", dir.display(), nf)
+    }
+        else{
+            format!(r"./{}/to_python_nf{}.txt", dir.display(), nf)
+        };
+    let expypath = if cfg!(windows) {
+        format!(r".\{}\exact_to_python_nf{}.txt", dir.display(), nf)
+    }
+    else{
+        format!(r"./{}/exact_to_python_nf{}.txt", dir.display(), nf)
+    };
+    let parameters_path = if cfg!(windows) {
+        format!(r".\{0}\parameters_nf{1}.txt", dir.display(), nf)
+    }
+    else{
+        format!(r"./{0}/parameters_nf{1}.txt", dir.display(), nf)
+    };
     println!("{} && {} && {}", pypath, expypath, parameters_path);
 //First of all: create one/two files in which we will store vector hor. lines
     create_safe_file(&pypath[..])?;
@@ -1400,7 +1441,12 @@ if let Some(ex) = wvector{
     //drop(expypath);
 //This will create csv like txt files to turn them in paraview window
 if paraview_format.unwrap_or(false){
-    switch_path = format!(r".\{0}\paraview_datas", dir.display());
+    switch_path = if cfg!(target_family = "unix"){
+        format!(r"./{0}/paraview_datas", dir.display())
+    }
+    else{
+        format!(r".\{0}\paraview_datas", dir.display())
+    };
     println!("quantity parts size: {}\n paraview path: {}", raw_size, switch_path);
     fs::create_dir_all(&switch_path[..])?;
     let end_of_traverse = (tvector.len() as f32/raw_size  as f32).floor() as usize;
@@ -1419,8 +1465,13 @@ if paraview_format.unwrap_or(false){
             if any_notnull
             //Iterate over horizontal lines and save in txt
             {
-            switch_path = format!(r".\{0}\paraview_datas\x_u_w_{1}_{2}.txt", dir.display(), nf, y_index);
-            println!("Now create in paraview csv like txt files with computed exact and numeric values");
+            switch_path = if cfg!(target_family = "unix"){
+                format!(r"./{0}/paraview_datas/x_u_w_{1}_{2}.txt", dir.display(), nf, y_index)
+            }
+            else{
+                format!(r".\{0}\paraview_datas\x_u_w_{1}_{2}.txt", dir.display(), nf, y_index)
+            };
+            println!("Now create in paraview txt files with computed exact and numeric values");
             //create_safe_file(&switch_path[..])?;//paraview_txt_file
             let mut my_file = std::fs::File::create(&switch_path[..]).unwrap();//superfluously
             println!("{:?}\n periods.len(): {}", my_file, periods.len());
@@ -1440,7 +1491,6 @@ if paraview_format.unwrap_or(false){
                     string_raw = format!(r"{},{},{},{}
 ", x_next, exact_vector[next_index], tvector[next_index], next_period);
                     my_file.write_all(&string_raw[..].as_bytes()).unwrap();
-                    println!("Write after");   
                 }
                 if y_index != end_of_traverse-1 {   
                     string_raw = format!(r"{},{},{},{}
@@ -1456,11 +1506,22 @@ if paraview_format.unwrap_or(false){
             }
         }
     }
-    let path_to_read = Path::new(&parameters_path[..]);
-    let mut prm= File::with_options().write(true).open(&path_to_read)?;   
-    prm.write_all(format!("Printed elements per raw {}\n", raw_size).as_bytes())?;
+    let s= format!(r"./src/treated_datas_{0}/parameters_nf{0}.txt", nf);
+    let path_to_read = if cfg!(windows) {
+        Path::new(&parameters_path[..])
+        }
+        else if cfg!(target_family = "unix"){
+            Path::new(&s[..])
+        }
+        else{
+            Path::new(&parameters_path[..])
+        };
+    println!("{}: {}", path_to_read.display(), path_to_read.exists());
+    let mut prm_file= File::with_options().write(true).open(&path_to_read)?;  
+    let new_position_par = prm_file.seek(SeekFrom::End(0)).unwrap(); 
+    prm_file.write_all(format!("Printed elements per raw {}\n", raw_size).as_bytes())?;
     if let Some(t_max) = t_max {
-    prm.write_all(format!("Maximum live time in burger task: {}\n", t_max).as_bytes())?;
+        prm_file.write_all(format!("Maximum live time in burger task: {}\n", t_max).as_bytes())?;
     }
     /*for e in WalkDir::new(".").into_iter().filter_map(|e| e.ok()) {
         if e.metadata().unwrap().is_file() {
@@ -1470,8 +1531,14 @@ if paraview_format.unwrap_or(false){
     //close then change
     let necessity_of_csv = necessity_of_csv.unwrap_or(false);//shaded variable
     if necessity_of_csv == true {
-        let t = &format!(r".\{0}\csv_nf{1}", dir.display(), nf)[..];
-        let new_switch_path: &Path = Path::new(t);
+        let ub = format!(r"./{0}/csv_nf{1}", dir.display(), nf);
+        let win = format!(r".\{0}\csv_nf{1}", dir.display(), nf);
+        let new_switch_path = if cfg!(target_family = "unix"){
+            Path::new(&ub[..])
+        }
+        else{
+            Path::new(&win[..])
+        };
         let mut csv_data_dir = Path::new(new_switch_path);
         let err = fs::create_dir_all(csv_data_dir)?;
         let mut csv_array = vec![vec![0_f32; 2_usize * raw_size];cmp::max(tvector.len(), exact_vector.len())]; //mem::size_of::<f32>() as usize
@@ -1499,10 +1566,12 @@ if paraview_format.unwrap_or(false){
             }
         }
     }
+    use std::io::SeekFrom;
+    use std::io::Seek;
     //let mut csv_array = vec![vec![0_u8; mem::size_of::<f32>() as usize];
     //    raw_size *  mem::size_of::<f32>() as usize]; 
     //if tvector.len().is_nan() || tvector.len() <= exact_vector.len() { exact_vector.len() } else { tvector.len() }
-    println!("pypath: {}\nexpypath: {}", pypath, expypath);
+    println!("pypath: {}\nexact pypath: {}", pypath, expypath);
     let mut py_file = File::with_options().write(true).open(&pypath)?;
     let mut expy_file =  File::with_options().write(true).open(&expypath)?;
     //______________________________________________//
@@ -1511,8 +1580,8 @@ if paraview_format.unwrap_or(false){
             if tvector[i+1_usize..i+(raw_size-1) as usize].iter().any(|&v| v !=0_f32){
                 //wtr_inner = Writer::from_path(&cnew_switch_csv_i)?;
                 //write!(&mut py_file," ").unwrap();//This will write binary data!
-                py_file.write_all(" ".as_bytes())?;
-                expy_file.write_all(" ".as_bytes())?;
+                py_file.write_all("".as_bytes())?;
+                expy_file.write_all("".as_bytes())?;
                 for k in 0..raw_size{
                     x_index = k as usize + i * raw_size as usize;//.to_le_bytes()
                     print!("{:.4} , ", tvector[x_index]);
@@ -1520,13 +1589,12 @@ if paraview_format.unwrap_or(false){
                         {print!("\n");}
                     if k != raw_size-1 {
                         //write!(&mut py_file,"{:.4}", tvector[x_index])?;//also as above!
-                        py_file.write_all(format!("{:.4}", tvector[x_index]).as_bytes())?;
-                        expy_file.write_all(format!("{:.4}", exact_vector[x_index]).as_bytes())?;
+                        py_file.write_all(format!("{:.4} ", tvector[x_index]).as_bytes())?;
+                        expy_file.write_all(format!("{:.4} ", exact_vector[x_index]).as_bytes())?;
                     }
                     else 
                     {
                         writeln!(&mut py_file, " {:.4}", tvector[x_index])?;
-                        println!("end{:?}", repeated);
                         writeln!(&mut expy_file, " {:.4}", exact_vector[x_index])?;
                     }//Maybe ]
             }
@@ -1544,7 +1612,12 @@ fn create_output_dir(fnum: usize, num_files: usize) -> StdResult<( PathBuf, File
 //Create file with named fields & Создаем файл с именованными полями
 let path = env::current_dir().unwrap();
 println!("{} {}", ansi_term::Colour::Cyan.on(ansi_term::Colour::Blue).fg(ansi_term::Colour::Yellow).paint("The current directory is "), path.display());
-let new_path = path.join(format!(r"src\treated_datas_{}", fnum));
+let new_path = if cfg!(target_family = "unix"){
+    path.join(format!(r"src/treated_datas_{}", fnum))
+}
+else{
+    path.join(format!(r"src\treated_datas_{}", fnum))
+};
 println!("{} {}", ansi_term::Colour::Cyan.on(ansi_term::Colour::Blue).fg(ansi_term::Colour::Green).paint("new_path is "), new_path.display());
 fs::create_dir_all(&new_path).unwrap(); //env::temp_dir();
 let temp_fi = new_path.join(format!(r"parameters_nf{}.txt", fnum));
@@ -1926,5 +1999,23 @@ fn wf(_path: Option<&Path>) -> Result<(), Error> {
         }
     }
     }    Ok(())
+}
+// =================================================================
+pub fn find(haystack: &str, needle: char) -> Option<usize> {
+    for (offset, c) in haystack.char_indices() {
+        if c == needle {
+            return Some(offset);
+        }
+    }
+    None
+}
+pub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
+let mut results = Vec::new();
+for line in contents.lines() {
+    if line.contains(query) {
+        results.push(line);
+        }
+    } 
+    results
 }
 // =================================================================
