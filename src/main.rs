@@ -72,13 +72,11 @@ use std::io::{self, stdin,
     BufRead, BufReader, ErrorKind};
 use structopt::StructOpt;
 use std::fs::OpenOptions;
-//extern crate grep_regex;
-//use itertools::Itertools;
-//___________________________________________________________________________________________________
         //let c: Vec<i32> = a.into_iter().chain(b.into_iter()).collect(); consumed
         //let c: Vec<&i32> = a.iter().chain(b.iter()).collect(); reference
         //let c: Vec<i32> = a.iter().cloned().chain(b.iter().cloned()).collect(); // Cloned
         //let c: Vec<i32> = a.iter().copied().chain(b.iter().copied()).collect(); // Copied
+//___________________________________________________________________________________________________
 //#[link(name = "smooth")]
 extern "C" {
     fn smooth_arr_zm_fur(Fs: *mut c_double, Nmax: c_int, smooth_intensity: c_double, Fi: *mut c_double, Ftd: *mut c_double) ->  c_int;
