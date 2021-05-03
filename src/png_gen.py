@@ -197,7 +197,6 @@ for (i, type) in enumerate(dir_types):
         else:
             png_path = ani_directory + out_folder_path + suffix_to_file.get(i)
         dst_param = os.path.join(ani_directory + out_folder_path, r'parameters_' + str(processed) + '.txt')
-        print("Copy parameters from:", dst_param)
         #if os.path.exists(dst_param):
         try: 
             dst_file = open(dst_param, 'w')
@@ -205,17 +204,15 @@ for (i, type) in enumerate(dir_types):
             pass
         files.append(dst_file)
         src_param = Path(new_cwd + "/src/treated_datas_{0}/parameters_nf{0}.txt".format(processed - 1))
-        print("To: ", src_param)
+        print("Copy parameters from:",src_param)
+        print("To: ", dst_param)
         print(dir_shapes, png_path)
         print(shutil.copyfile(src_param, dst_param))
         if ssleep:
-            time.sleep(4) 
+            time.sleep(3) 
         #And now process the array itself
         for k in range(len(arrays[0])):
             png_path_k = png_path + str(k)
-            print(png_path_k)
-            cur_image_path = os.path.join(out_folder_path, png_path_k)
-            print(cur_image_path)
             plt.legend(["Exact solution","Numeric solution"],loc='upper left')
             plt.xlabel('Distance on x axis')
             plt.ylabel('height')           
@@ -229,12 +226,12 @@ for (i, type) in enumerate(dir_types):
                 markerfacecoloralt = 'b', fillstyle =  'full')
             #plt.pause(0.1)
             try:
-                plt.savefig(cur_image_path)
+                plt.savefig(png_path_k)
             except FileExistsError as e:
                 print('File already exists')
             except OSError as e:
                 print("Continuing anyways: {e}")
-            plt.show()
+            #plt.show()
     
 lines=[[]]
 #colour map
