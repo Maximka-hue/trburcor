@@ -1,6 +1,5 @@
 import itertools
 import ast
-%matplotlib inline
 import math
 import numpy as np
 import os,re
@@ -12,53 +11,115 @@ import pandas as pd
 from pathlib import Path
 #from shutil import copyfile
 import shutil
+"""This will have parameters paths on which from rust processed data will generate anmations
+
+trburcor/Animation -  here diferent form types will lie with their parameters
+So: file_num describe how much files were done in terminal
+with dir_types create in there 5 files corresponding to each type
+"""
+def glob_re(path, regex="", glob_mask="**/*", inverse=False):
+    p = Path(path)
+    count=0
+    if inverse:
+        res = [str(f) for f in p.glob(glob_mask) if not re.search(regex, str(f))]
+        count+=1
+    else:
+        res = [str(f) for f in p.glob(glob_mask) if re.search(regex, str(f))]
+        count+=1
+    return (res,count)
 # First set up the figure, the axis, and the plot element we want to animate
 fig, ax = plt.subplots()
-#_____________________Processing datas___________________________________#
+#Configuring paths
+cwd = os.getcwd()
+new_cwd = ""
+ani_path = ""
+print("Current working directory: {0}".format(cwd))
+ani_directory = os.path.join(cwd ,"trburcor","Animations")
+new_cwd = os.path.join(cwd ,"trburcor")
+if not os.path.exists(ani_directory):    
+    os.makedirs(ani_directory)
 try:
-    fp =  open(r"C:\Users\2020\RUSTprojects\trburcor\src\treated_datas_0\parameters_nf0.txt", 'r')
-except IOError:
-    print ("No file")
-l = [line.strip() for line in fp]
-pprint(l)
+    os.chdir(new_cwd)
+    new_cwd = os.getcwd()
+    print("Directory changed: {0}".format(new_cwd))
+except FileNotFoundError:
+    print("Directory: {0} does not exist".format(ani_directory))
+except NotADirectoryError:
+    print("{0} is not a directory".format(ani_directory))
+except PermissionError:
+    print("You do not have permissions to change to {0}".format(ani_directory))
+except OSError:
+    print("Can't change the Current Working Directory")  
+route = Path(new_cwd + "/src/txt_to_parse")
+print("Txt files lay in: ", route)
+for dirpath, _dirnames, filenames in os.walk(route):
+    print('Текущий путь:', dirpath)
+    print('Файлы:')
+    pprint(filenames)
+#Here store all example files to run with
+processed_rust_files = Path(new_cwd + "/src")
+(tar, c) = glob_re(processed_rust_files, regex="treated_datas_")
+file_num = np.arange(1, c+1)
+suffix_to_file = {0: "/_one_", 1: "/_two_", 2: "/_three", 3: "/_four", 4: "/_five"}
+dir_types = ['runge','triangle','gauss_wave','sinusoid','lines']
+print(file_num)
 dl=0.0
 dr=0.0
 equation_type = 0
-for ll in l:
-    if "Initial type" in ll:
-        res = re.sub('[^0-9]+', '', ll)
-        equation_type = float(res)
-        print("equation_type", equation_type)
-    if "Margin domain: " in ll:
-        k = [float(el) for el in ll[len('margin_domain: '):-1].replace('(','').replace(')','').replace("\\","").split(',')]
-        print("Left bound", k[0])
-        dl=k[0]
-        print("Right bound", k[1])
-        dr=k[1]
-        ax.set_xlim(( k[0]-0.2, k[1]+0.2))
+shape_type = 0
+#_____________________Processing datas___________________________________#
+param_path = Path(new_cwd + r"\src\treated_datas_0\parameters_nf0.txt")
+try:
+    fp =  open(param_path, 'r')
+    l = [line.strip() for line in fp]
+    pprint(l)
+    for ll in l:
+        if "Initial type" in ll:
+            res = re.sub('[^0-9]+', '', ll)
+            equation_type = float(res)
+            print("equation_type", equation_type)
+        if "Margin domain: " in ll:
+            k = [float(el) for el in ll[len('margin_domain: '):-1].replace('(','').replace(')','').replace("\\","").split(',')]
+            print("Left bound", k[0])
+            dl=k[0]
+            print("Right bound", k[1])
+            dr=k[1]
+            ax.set_xlim(( k[0]-0.2, k[1]+0.2))
             #ax[1].set_xlim(( k[0]-0.2, k[1]+0.2))
-    if "Initial conditions:" in ll:
-        k = [float(el) for el in ll[len("Initial conditions: "):-1].replace('(','').replace("Some","").replace(')','').replace("\\","").split(',')]
-        print("Center/MatExpect", k[0])
-        print("Height/Dispersion", k[1])
-        print("Width", k[2])
-        if equation_type == 0 or equation_type == 1:
-            ax.set_ylim((0, k[2]))#k[1]
-        #ax[1].set_ylim((-1, k[2]))
-        if equation_type == 2:
-            ax.set_ylim((0, 0.002))#k[1]
-        if equation_type == 3 or equation_type == 4:
-            ax.set_ylim((-1, k[2]))#k[1]
+        if "Initial conditions:" in ll:
+            k = [float(el) for el in ll[len("Initial conditions: "):-1].replace('(','').replace("Some","").replace(')','').replace("\\","").split(',')]
+            print("Center/MatExpect", k[0])
+            print("Height/Dispersion", k[1])
+            print("Width", k[2])
+            if equation_type == 0 or equation_type == 1:
+                ax.set_ylim((0, k[2]))#k[1]
+            #ax[1].set_ylim((-1, k[2]))
+            if equation_type == 2:
+                ax.set_ylim((0, 0.002))#k[1]
+            if equation_type == 3 or equation_type == 4:
+                ax.set_ylim((-1, k[2]))#k[1]
+        if "Initial type" in ll:
+                res = re.sub('[^0-9]+', '', ll)
+                shape_type = float(res)
+                print("shape_type", shape_type)
+except IOError:
+    print ("No file")
 #________________________________________________________________________#
+dif_errors = []
+for k in file_num:
+    differ_path = Path(new_cwd + "/src/differential_errors{}.txt".format(file_num[k] - 1))
+    print(differ_path)
+    if not os.path.exists(differ_path):    
+        os.makedirs(differ_path)
+    dif = open(differ_path, 'w')
+    dif_errors.append(dif)
 sizes = [[],[]]
 size = []
-file_num = 0
 euclid_norm = 0.0
 uniform_norm = 0.0
 temp_dif_colomns = 0.0
 arrays = [[],[]]
-dif = open(("../src/differential_errors{}.txt").format(file_num), 'w')
-array_path = r"C:\Users\2020\RUSTprojects\trburcor\src\treated_datas_0\paraview_datas"
+array_path = Path(new_cwd + "/src/treated_datas_0/paraview_datas")
 for i,entry in enumerate(os.scandir(array_path)):
     f = os.path.join(array_path, entry)
     if os.path.isfile(f) and entry.name.endswith('.txt'):
@@ -72,7 +133,7 @@ for i,entry in enumerate(os.scandir(array_path)):
                 #Calculate norms
                 max_ind = (df["exv"] - df["numv"]).idxmax()
                 print("Maximum differece with exact and numeric solutions in raw: ",
-                      max_ind)
+                    max_ind)
                 #x   exv   numv
                 print(df.iloc[max_ind])
                 uniform_norm = abs(df["exv"].iloc[max_ind] - df["numv"].iloc[max_ind])
@@ -102,70 +163,67 @@ for i,entry in enumerate(os.scandir(array_path)):
 pprint(arrays)
 print("array lenght" , len(arrays[0]))
 print(len(arrays[1]))
-
-cwd = os.getcwd()
-print(cwd)
-try:
-    os.chdir(os.path.join(cwd , r"RUSTprojects\trburcor\Animations"))
-    print("Directory changed")
-except OSError:
-    print("Can't change the Current Working Directory")   
-route = "txt_to_parse"
-for dirpath, dirnames, filenames in os.walk(route):
-    print('Текущий путь:', dirpath)
-    print('Папки:', dirnames)
-    print('Файлы:', filenames)
     
-#os.chdir(os.path.join(cwd, r"RUSTprojects\trburcor\Animations"))
 x = np.linspace(dl, dr, sizes[0][0])
-#print(x)
-change_cor = True
-dir_types = ['runge','triangle','gauss_wave','sinusoid','lines']
-out_folder_path = dir_types[0]
+#print(x)Max
 crt = "_with correction"
-if change_cor:
-    png_path = out_folder_path+ r"_two" + crt
-for i in range(len(arrays[0])):
-    try:
-        os.mkdir(out_folder_path)
-    except FileExistsError as e:
-        print('File already exists')
-            #return False
-    except OSError as e:
-        print(f"An error has occurred. Continuing anyways: {e}")
-    dst_param = os.path.join(cwd, out_folder_path, r'parameters_' + str(1) + '.txt')
-    if not os.path.exists(dst_param):
-        dst_file = open(dst_param, 'w')
-    print(dst_param)
-    src_param = r"C:\Users\2020\RUSTprojects\trburcor\src\treated_datas_0\parameters_nf0.txt"
-    shutil.copyfile(src_param, dst_param)
-    png_path_i = png_path + str(i)
-    print(png_path_i)
-    cur_image_path = os.path.join(out_folder_path, png_path_i)
-    print(cur_image_path)
-    plt.legend(["Exact solution","Numeric solution"],loc='upper left')
-    plt.xlabel('Distance on x axis')
-    plt.ylabel('height')           
+change_cor = False #False mean no correction
+files = []
+for (i, type) in enumerate(dir_types):
+    out_folder_path = type
     if change_cor:
-        plt.title(out_folder_path + ' type'+ crt)
+        png_path = out_folder_path + suffix_to_file.get(i) + crt
     else:
-        plt.title(out_folder_path + ' type')
-    plt.plot(x, arrays[0][i],'go--', linewidth=2, markersize=3, alpha = 0.6, animated ='false',
-        markerfacecoloralt = 'b', fillstyle =  'left')
-    plt.plot(x, arrays[1][i],'yo--', linewidth=3, markersize=3, alpha = 0.5, animated ='false',
-        markerfacecoloralt = 'b', fillstyle =  'full')
-    #plt.pause(0.1)
-    try:
-        plt.savefig(cur_image_path)
-    except FileExistsError as e:
-        print('File already exists')
-    except OSError as e:
-        print(f"An error has occurred. Continuing anyways: {e}")
-    plt.show()
+        png_path = out_folder_path + suffix_to_file.get(i)
+    dir_shapes = Path(ani_directory + out_folder_path)
+    if os.path.exists(dir_shapes):
+        pass
+    else:
+        try:
+            os.mkdir(ani_directory + out_folder_path)
+        #except FileExistsError as e:
+        #    print('File already exists')
+        except OSError as e:
+            print("An error has occurred. Continuing anyways: {e}")
+    dst_param = os.path.join(ani_directory, out_folder_path, r'parameters_' + str(file_num[i]) + '.txt')
+    print(dst_param)
+    #if os.path.exists(dst_param):
+    dst_file = open(dst_param, 'w')
+    files.append(dst_file)
+    for i in range(len(arrays[0])):
+        src_param = Path(new_cwd + r"\src\treated_datas_0\parameters_nf0.txt")
+        shutil.copyfile(src_param, dst_param)
+        png_path_i = png_path + str(i)
+        print(png_path_i)
+        cur_image_path = os.path.join(out_folder_path, png_path_i)
+        print(cur_image_path)
+        plt.legend(["Exact solution","Numeric solution"],loc='upper left')
+        plt.xlabel('Distance on x axis')
+        plt.ylabel('height')           
+        if change_cor:
+            plt.title(out_folder_path + ' type'+ crt)
+        else:
+            plt.title(out_folder_path + ' type')
+        plt.plot(x, arrays[0][i],'go--', linewidth=2, markersize=3, alpha = 0.6, animated ='false',
+            markerfacecoloralt = 'b', fillstyle =  'left')
+        plt.plot(x, arrays[1][i],'yo--', linewidth=3, markersize=3, alpha = 0.5, animated ='false',
+            markerfacecoloralt = 'b', fillstyle =  'full')
+        #plt.pause(0.1)
+        try:
+            plt.savefig(cur_image_path)
+        except FileExistsError as e:
+            print('File already exists')
+        except OSError as e:
+            print(f"An error has occurred. Continuing anyways: {e}")
+        plt.show()
     
 lines=[[]]
 #colour map
 cmap = ["green", "blue", "red", "orange"]
+for f in dif_errors:
+    f.close()
+for fi in files:
+    fi.close()
 dst_file.close()
 dif.close()
     
@@ -173,25 +231,3 @@ outer_sizes = [172, 33]
 inner_sizes = [24,  24, 4,  116,    3,  0, 2,   4,  5,  20  ,1, 1]
 outer_colors = ['#D4A6C8', '#A0CBE8']
 inner_colors = ['PeachPuff','GhostWhite', 'Gold', 'Thistle', 'LightCyan', 'Wheat']
-labels = ['Женщины', 'Мужчины', 'Гуманитарное',
-'Естественнонаучное',
-'Инженерно-техническое',
-'Образование и педагогика',
-'Социально-экономическое',
-'Творческое']
-plt.title('Направление образования (%)')
-sex = ['Женщины', 'Мужчины']
-plt.pie(outer_sizes,colors=outer_colors, startangle=90,frame=True, radius=4, labels= sex)
-
-plt.pie(inner_sizes,colors=inner_colors,radius=3,startangle=90,autopct='%1.0f%%',
-       pctdistance=0.8, textprops={'size':7})
-
-
-plt.legend(labels, loc='upper left', bbox_to_anchor=(1.0, 1.0) ,facecolor = 'oldlace', edgecolor = 'r')
-center_circle = plt.Circle((0,0), 1.5, color='black', fc='white', linewidth=0)
-fig = plt.gcf()
-
-fig.gca().add_artist(center_circle)
-fig.set_size_inches(10,6)
-plt.axis('scaled')
-fig.tight_layout()
