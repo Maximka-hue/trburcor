@@ -16,7 +16,7 @@ import shutil
 trburcor/Animation -  here diferent form types will lie with their parameters
 So: file_num describe how much files were done in terminal
 with dir_types create in there 5 files corresponding to each type
-"""
+and process over possible shapes, then treated datas, and then arrays in processed files"""
 def glob_re(path, regex="", glob_mask="**/*", inverse=False):
     p = Path(path)
     count=0
@@ -107,7 +107,7 @@ except IOError:
 #________________________________________________________________________#
 dif_errors = []
 for k in file_num:
-    differ_path = Path(new_cwd + "/src/differential_errors{}.txt".format(file_num[k] - 1))
+    differ_path = Path(new_cwd + "/src/differential_errors{}.txt".format(k - 1))
     print(differ_path)
     if not os.path.exists(differ_path):    
         os.makedirs(differ_path)
@@ -169,6 +169,7 @@ x = np.linspace(dl, dr, sizes[0][0])
 crt = "_with correction"
 change_cor = False #False mean no correction
 files = []
+#process different shapes and create directories for them
 for (i, type) in enumerate(dir_types):
     out_folder_path = type
     if change_cor:
@@ -185,37 +186,42 @@ for (i, type) in enumerate(dir_types):
         #    print('File already exists')
         except OSError as e:
             print("An error has occurred. Continuing anyways: {e}")
-    dst_param = os.path.join(ani_directory, out_folder_path, r'parameters_' + str(file_num[i]) + '.txt')
-    print(dst_param)
-    #if os.path.exists(dst_param):
-    dst_file = open(dst_param, 'w')
-    files.append(dst_file)
-    for i in range(len(arrays[0])):
-        src_param = Path(new_cwd + r"\src\treated_datas_0\parameters_nf0.txt")
+    if type != shape_type:
+        break
+    #Now process every treated_directory
+    for processed in file_num:
+        dst_param = os.path.join(ani_directory, out_folder_path, r'parameters_' + str(processed) + '.txt')
+        print(dst_param)
+        #if os.path.exists(dst_param):
+        dst_file = open(dst_param, 'w')
+        files.append(dst_file)
+        src_param = Path(new_cwd + r"\src\treated_datas_{}\parameters_nf{}.txt".format(processed))
         shutil.copyfile(src_param, dst_param)
-        png_path_i = png_path + str(i)
-        print(png_path_i)
-        cur_image_path = os.path.join(out_folder_path, png_path_i)
-        print(cur_image_path)
-        plt.legend(["Exact solution","Numeric solution"],loc='upper left')
-        plt.xlabel('Distance on x axis')
-        plt.ylabel('height')           
-        if change_cor:
-            plt.title(out_folder_path + ' type'+ crt)
-        else:
-            plt.title(out_folder_path + ' type')
-        plt.plot(x, arrays[0][i],'go--', linewidth=2, markersize=3, alpha = 0.6, animated ='false',
-            markerfacecoloralt = 'b', fillstyle =  'left')
-        plt.plot(x, arrays[1][i],'yo--', linewidth=3, markersize=3, alpha = 0.5, animated ='false',
-            markerfacecoloralt = 'b', fillstyle =  'full')
-        #plt.pause(0.1)
-        try:
-            plt.savefig(cur_image_path)
-        except FileExistsError as e:
-            print('File already exists')
-        except OSError as e:
-            print(f"An error has occurred. Continuing anyways: {e}")
-        plt.show()
+        #And now process the array itself
+        for k in range(len(arrays[0])):
+            png_path_k = png_path + str(i)
+            print(png_path_k)
+            cur_image_path = os.path.join(out_folder_path, png_path_i)
+            print(cur_image_path)
+            plt.legend(["Exact solution","Numeric solution"],loc='upper left')
+            plt.xlabel('Distance on x axis')
+            plt.ylabel('height')           
+            if change_cor:
+                plt.title(out_folder_path + ' type'+ crt)
+            else:
+                plt.title(out_folder_path + ' type')
+            plt.plot(x, arrays[0][i],'go--', linewidth=2, markersize=3, alpha = 0.6, animated ='false',
+                markerfacecoloralt = 'b', fillstyle =  'left')
+            plt.plot(x, arrays[1][i],'yo--', linewidth=3, markersize=3, alpha = 0.5, animated ='false',
+                markerfacecoloralt = 'b', fillstyle =  'full')
+            #plt.pause(0.1)
+            try:
+                plt.savefig(cur_image_path)
+            except FileExistsError as e:
+                print('File already exists')
+            except OSError as e:
+                print(f"An error has occurred. Continuing anyways: {e}")
+            plt.show()
     
 lines=[[]]
 #colour map
@@ -224,10 +230,4 @@ for f in dif_errors:
     f.close()
 for fi in files:
     fi.close()
-dst_file.close()
-dif.close()
     
-outer_sizes = [172, 33]
-inner_sizes = [24,  24, 4,  116,    3,  0, 2,   4,  5,  20  ,1, 1]
-outer_colors = ['#D4A6C8', '#A0CBE8']
-inner_colors = ['PeachPuff','GhostWhite', 'Gold', 'Thistle', 'LightCyan', 'Wheat']
