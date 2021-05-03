@@ -1,4 +1,3 @@
-import itertools
 import ast
 import math
 import numpy as np
@@ -7,10 +6,12 @@ from IPython.display import HTML
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from pprint import pprint
+import time
 import pandas as pd
 from pathlib import Path
 #from shutil import copyfile
 import shutil
+ssleep = True
 """This will have parameters paths on which from rust processed data will generate anmations
 
 trburcor/Animation -  here diferent form types will lie with their parameters
@@ -61,14 +62,14 @@ processed_rust_files = Path(new_cwd + "/src")
 (tar, c) = glob_re(processed_rust_files, regex="treated_datas_")
 file_num = np.arange(1, c+1)
 suffix_to_file = {0: "/_one_", 1: "/_two_", 2: "/_three", 3: "/_four", 4: "/_five"}
-dir_types = ['runge','triangle','gauss_wave','sinusoid','lines']
+dir_types = ['/runge','/triangle','/gauss_wave','/sinusoid','/lines']
 print(file_num)
 dl=0.0
 dr=0.0
 equation_type = 0
 shape_type = 0
 #_____________________Processing datas___________________________________#
-param_path = Path(new_cwd + r"\src\treated_datas_0\parameters_nf0.txt")
+param_path = Path(new_cwd + r"/src/treated_datas_0/parameters_nf0.txt")
 try:
     fp =  open(param_path, 'r')
     l = [line.strip() for line in fp]
@@ -100,7 +101,7 @@ try:
                 ax.set_ylim((-1, k[2]))#k[1]
         if "Initial type" in ll:
                 res = re.sub('[^0-9]+', '', ll)
-                shape_type = float(res)
+                shape_type = int(res)
                 print("shape_type", shape_type)
 except IOError:
     print ("No file")
@@ -113,6 +114,8 @@ for k in file_num:
         os.makedirs(differ_path)
     dif = open(differ_path, 'w')
     dif_errors.append(dif)
+    if ssleep:
+        time.sleep(2) 
 sizes = [[],[]]
 size = []
 euclid_norm = 0.0
@@ -169,13 +172,12 @@ x = np.linspace(dl, dr, sizes[0][0])
 crt = "_with correction"
 change_cor = False #False mean no correction
 files = []
+print(shape_type)
+sshape_type = dir_types[shape_type].strip("/")
 #process different shapes and create directories for them
 for (i, type) in enumerate(dir_types):
     out_folder_path = type
-    if change_cor:
-        png_path = out_folder_path + suffix_to_file.get(i) + crt
-    else:
-        png_path = out_folder_path + suffix_to_file.get(i)
+    print(type)
     dir_shapes = Path(ani_directory + out_folder_path)
     if os.path.exists(dir_shapes):
         pass
@@ -186,22 +188,33 @@ for (i, type) in enumerate(dir_types):
         #    print('File already exists')
         except OSError as e:
             print("An error has occurred. Continuing anyways: {e}")
-    if type != shape_type:
-        break
+    if type.strip("/") != sshape_type:
+        continue
     #Now process every treated_directory
     for processed in file_num:
-        dst_param = os.path.join(ani_directory, out_folder_path, r'parameters_' + str(processed) + '.txt')
-        print(dst_param)
+        if change_cor:
+            png_path = ani_directory + out_folder_path + suffix_to_file.get(i) + crt
+        else:
+            png_path = ani_directory + out_folder_path + suffix_to_file.get(i)
+        dst_param = os.path.join(ani_directory + out_folder_path, r'parameters_' + str(processed) + '.txt')
+        print("Copy parameters from:", dst_param)
         #if os.path.exists(dst_param):
-        dst_file = open(dst_param, 'w')
+        try: 
+            dst_file = open(dst_param, 'w')
+        except EOFError as e:
+            pass
         files.append(dst_file)
-        src_param = Path(new_cwd + r"\src\treated_datas_{}\parameters_nf{}.txt".format(processed))
-        shutil.copyfile(src_param, dst_param)
+        src_param = Path(new_cwd + "/src/treated_datas_{0}/parameters_nf{0}.txt".format(processed - 1))
+        print("To: ", src_param)
+        print(dir_shapes, png_path)
+        print(shutil.copyfile(src_param, dst_param))
+        if ssleep:
+            time.sleep(4) 
         #And now process the array itself
         for k in range(len(arrays[0])):
-            png_path_k = png_path + str(i)
+            png_path_k = png_path + str(k)
             print(png_path_k)
-            cur_image_path = os.path.join(out_folder_path, png_path_i)
+            cur_image_path = os.path.join(out_folder_path, png_path_k)
             print(cur_image_path)
             plt.legend(["Exact solution","Numeric solution"],loc='upper left')
             plt.xlabel('Distance on x axis')
@@ -220,7 +233,7 @@ for (i, type) in enumerate(dir_types):
             except FileExistsError as e:
                 print('File already exists')
             except OSError as e:
-                print(f"An error has occurred. Continuing anyways: {e}")
+                print("Continuing anyways: {e}")
             plt.show()
     
 lines=[[]]
@@ -230,4 +243,3 @@ for f in dif_errors:
     f.close()
 for fi in files:
     fi.close()
-    
