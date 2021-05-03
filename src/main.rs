@@ -1,6 +1,5 @@
-//This program use nightly rust, so input in terminal: rustup override add nightly &| cargo +nightly 
-//Also if you want to use python functions,  i had created pyenv(for experiments with export as i supposed to use, but have problems with build.dependences on windows)
-// and also you can set to build dependencies pyO3 for nightly,
+//This program use nightly rust, so push in terminal: rustup install nightly **** rustup override add nightly **&|** cargo +nightly 
+//Also if exist desire to use python functions, on windows I had problem with PyO3 and have created pyenv(build.dependences on linux all ok)
 //you can activate pyenv or not: pypyint-env\Scripts\activate.bat
 //Windows: total path
 //cargo run main.rs "C:\Users\2020\RUSTFirstOrderEquation\src\Other\src\TransferBurgerMccornack_iconditions.txt"
@@ -9,10 +8,9 @@
 //  cargo run main.rs txt_to_parse\TransferBurgerMccornack_iconditions1.txt  -d
 //  txt_to_parse\TransferBurgerMccornack_iconditions11.txt txt_to_parse\TransferBurgerMccornack_iconditions111.txt -d -amf 3 
 //Also on Ubuntu:
-//I had write on my user defined system: cd /home/computadormaxim/RUSTprojects/trburcor
+//I had write: cd /home/computadormaxim/RUSTprojects/trburcor
 //cargo run main.rs /home/computadormaxim/RUSTprojects/trburcor/src/txt_to_parse/TransferBurgerMccornack_iconditions0.txt -d
 //cargo run main.rs ./txt_to_parse/TransferBurgerMccornack_iconditions0.txt  -d 
-//cp ./src/treated_datas_nf0 
 //As this training task for first steps learning language, 
 //DESIGNATIONS will be following:📔
 //E!xt- Doesn't import crate
